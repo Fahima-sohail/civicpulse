@@ -8,7 +8,13 @@ Municipal complaint intake, deterministic/LLM triage, PostgreSQL persistence, an
 docker compose up --build
 ```
 
-Open http://localhost:8000/health. The Compose startup applies the Alembic migration and idempotently seeds 30 complaints.
+Open http://localhost:5173 to use the CivicPulse website, or http://localhost:8000/health to check backend liveness. The Compose startup applies the Alembic migration and idempotently seeds 30 complaints.
+
+## Frontend runtime configuration
+
+The frontend only calls relative paths such as `/api/complaints`. Its nginx configuration proxies `/api/` to the Compose service name `backend`, so the browser never needs an environment-specific backend URL. This keeps one built image deployable across environments: baking an absolute API URL into Vite through `import.meta.env` would turn that URL into static JavaScript at build time and require a separate frontend image for every environment.
+
+The Node 22 builder stage is approximately 678 MB (it includes build tooling and `node_modules`); the nginx runtime stage is approximately 73.8 MB and contains only nginx, the proxy configuration, and the compiled assets. The frontend's six Vitest component tests pass in the Docker test stage.
 
 ## API
 
