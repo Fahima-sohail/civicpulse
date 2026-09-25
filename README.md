@@ -1,36 +1,87 @@
-# CivicPulse backend
+# CivicPulse
 
-Municipal complaint intake, deterministic/LLM triage, PostgreSQL persistence, and Redis-backed caching/rate limiting.
+[![Backend](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/) [![Frontend](https://img.shields.io/badge/frontend-React-61DAFB)](https://react.dev/) [![Containerised](https://img.shields.io/badge/containers-Docker-2496ED)](https://www.docker.com/)
 
-## Run
+CivicPulse is a municipal-complaint service. Residents submit a report, the service assigns a category and priority, and operations staff can track it through to resolution. It includes deterministic rules, a local Ollama model, and an optional Groq provider for triage.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  browser[Resident or operator browser] --> frontend[React frontend / nginx]
+  frontend -->|/api proxy| backend[FastAPI backend]
+  backend --> postgres[(PostgreSQL)]
+  backend --> redis[(Redis AOF cache and rate limits)]
+  backend --> ollama[Local Ollama model]
+  backend -->|optional outbound HTTPS| groq[Groq API]
+
+  subgraph edge[edge bridge network]
+    frontend
+    backend
+    ollama
+  end
+  subgraph internal[internal bridge network — no direct internet route]
+    backend
+    postgres
+    redis
+  end
+```
+
+The backend is deliberately the only service connected to both networks. The frontend cannot reach PostgreSQL or Redis directly. The backend can still make an outbound Groq request through its `edge` membership.
+
+## Quick start
+
+1. Install Docker Desktop and make sure it is running.
+2. Optionally copy `.env.example` to `.env` and replace placeholder values only if you need Groq.
+3. From this directory, run:
 
 ```powershell
 docker compose up --build
 ```
 
-Open http://localhost:5173 to use the CivicPulse website, or http://localhost:8000/health to check backend liveness. The Compose startup applies the Alembic migration and idempotently seeds 30 complaints.
+The first start downloads the Ollama model (`llama3.2:1b` by default), so it can take several minutes and needs approximately 1.3 GB of download space. When the health checks are ready, open <http://localhost:5173>. Backend liveness is available at <http://localhost:8000/health>.
 
-## Frontend runtime configuration
+To stop the stack while retaining database, Redis, and model data:
 
-The frontend only calls relative paths such as `/api/complaints`. Its nginx configuration proxies `/api/` to the Compose service name `backend`, so the browser never needs an environment-specific backend URL. This keeps one built image deployable across environments: baking an absolute API URL into Vite through `import.meta.env` would turn that URL into static JavaScript at build time and require a separate frontend image for every environment.
+```powershell
+docker compose down
+```
 
-The Node 22 builder stage is approximately 678 MB (it includes build tooling and `node_modules`); the nginx runtime stage is approximately 73.8 MB and contains only nginx, the proxy configuration, and the compiled assets. The frontend's six Vitest component tests pass in the Docker test stage.
+`docker compose down --volumes` also deletes those persistent volumes, so use it only when you intentionally want a fresh local database/cache/model download.
+
+## Triage providers
+
+| `TRIAGE_PROVIDER` | Use case | Network behaviour |
+|---|---|---|
+| `rules` (default) | Predictable local development | No model/API request |
+| `simulated` | Repeatable failure-path testing | No model/API request |
+| `ollama` | Offline/local model triage | Backend calls the local `ollama` service over `edge` |
+| `llm` or `groq` | Hosted LLM triage | Backend calls Groq over outbound HTTPS; requires `GROQ_API_KEY` |
 
 ## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | /api/complaints | Intake, triage and persist |
-| GET | /api/complaints | Filtered/paginated list |
-| GET | /api/complaints/{id} | One complaint |
-| PATCH | /api/complaints/{id}/status | State transition |
-| GET | /api/stats | Cached aggregate stats |
-| GET | /api/meta/providers | Provider observability |
-| GET | /health, /ready, /metrics | Operational endpoints |
+| `POST` | `/api/complaints` | Intake, triage, and persist a complaint |
+| `GET` | `/api/complaints` | List complaints with filters and pagination |
+| `GET` | `/api/complaints/{id}` | Get a complaint |
+| `PATCH` | `/api/complaints/{id}/status` | Apply a valid status transition |
+| `GET` | `/api/stats` | Get cached aggregate statistics |
+| `GET` | `/api/meta/providers` | Inspect recent provider outcomes |
+| `GET` | `/health`, `/ready`, `/metrics` | Liveness, readiness, and metrics |
 
-## Operational choices
+## Operations and security notes
 
-- Groq model guess: `llama-3.1-8b-instant`; set `GROQ_API_KEY` and `TRIAGE_PROVIDER=llm` to use it.
-- Rate limit guess: 20 complaint submissions per IP per 60 seconds. Override `RATE_LIMIT_COUNT` and `RATE_LIMIT_WINDOW_SECONDS`.
-- `pgdata` persists database rows. `redisdata` persists Redis AOF, retaining limiter state/cache across restarts. `ollama_models` retains the local Ollama model after its first download.
-- Set `TRIAGE_PROVIDER=ollama` to use the local `llama3.2:1b` provider. Ollama is edge-only so it can download the model, while the backend remains the only service bridging `edge` and `internal`.
+- PostgreSQL rows persist in `pgdata`; Redis AOF state persists in `redisdata`; downloaded Ollama models persist in `ollama_models`.
+- The production file uses immutable image variables: `docker compose -f compose.prod.yaml up -d`. It has no source bind mount and does not publish PostgreSQL or Redis ports.
+- To demonstrate database isolation after the stack is healthy, run `docker compose exec frontend ping -c 1 postgres`. It must fail because `frontend` only belongs to `edge`.
+- Do not put a Groq key or database password in Git. Use `.env` locally and deployment secrets in production.
+
+## Project documentation
+
+- [Architecture decisions](docs/adr/)
+- [Runbook](docs/RUNBOOK.md)
+- [Engineering notes](docs/ENGINEERING-NOTES.md)
+- [Evidence folder](docs/evidence/)
+
+The evidence folder is intentionally kept in Git but does not yet contain screenshots or a demo video. Capture those after the full stack has been run and tested end-to-end.
