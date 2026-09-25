@@ -1,6 +1,6 @@
 # CivicPulse runbook
 
-This runbook is for the Docker Compose stack. Kubernetes deployment steps will be added once the Kubernetes manifests exist.
+This runbook covers the Docker Compose stack and the Kubernetes manifests in `k8s/`.
 
 ## Start and inspect the development stack
 
@@ -68,3 +68,27 @@ docker compose --env-file .env -f compose.prod.yaml up --detach
 ```
 
 Production uses pre-built images and does not bind-mount source code. PostgreSQL and Redis deliberately have no host ports. To roll back after images are published, set `IMAGE_TAG` to the previous known-good tag and repeat the production `up --detach` command.
+
+## Kubernetes deploy and rollback
+
+Prerequisites are a local kind/k3d cluster, an nginx Ingress controller, metrics-server, and VPA CRDs/recommender. Build/load local images, then apply the development overlay:
+
+```powershell
+docker build -t civicpulse-backend:dev ./backend
+docker build -t civicpulse-frontend:dev ./frontend
+kubectl apply -k k8s/overlays/dev
+kubectl -n civicpulse wait --for=condition=complete job/backend-migrate-seed --timeout=180s
+kubectl -n civicpulse rollout status deployment/backend
+kubectl -n civicpulse rollout status deployment/frontend
+```
+
+Read Kubernetes logs with `kubectl -n civicpulse logs deployment/backend --tail=200` or `kubectl -n civicpulse logs statefulset/postgres --tail=200`. The default Kubernetes provider is `rules`; before enabling Groq, replace the placeholder Secret using a secure deployment mechanism.
+
+To roll back a failing deployment, use:
+
+```powershell
+kubectl -n civicpulse rollout undo deployment/backend
+kubectl -n civicpulse rollout undo deployment/frontend
+```
+
+Run `kubectl -n civicpulse get hpa backend -w` alongside `k6 run -e BASE_URL=http://civicpulse.local load/k6-script.js` to capture actual HPA evidence. The complete local-cluster instructions are in [k8s/README.md](../k8s/README.md).

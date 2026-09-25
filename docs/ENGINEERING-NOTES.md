@@ -4,31 +4,33 @@ These notes record the evidence currently present in the repository. They delibe
 
 ## 1. Container image choices
 
-PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.yml:2` and `docker-compose.yml:19`). The frontend is served by nginx and proxies the API to the backend (`frontend/nginx.conf:7-16`). Development builds the application images locally; production references `${BACKEND_IMAGE}:${IMAGE_TAG}` and `${FRONTEND_IMAGE}:${IMAGE_TAG}` (`compose.prod.yaml:75-76`, `compose.prod.yaml:111-112`).
+My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is `nginx:1.27-alpine` (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
 
-Ollama uses a dedicated image and a persistent `ollama_models` volume (`docker-compose.yml:33-55`). Its larger resource allocation in production acknowledges the model-serving workload.
+PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.yml:2` and `docker-compose.yml:19`). Ollama uses a dedicated image and persistent `ollama_models` volume (`docker-compose.yml:33-55`); its larger production limit recognises model serving as a heavier workload.
 
 ## 2. Pipeline timing and cost
 
-Not yet measured. CI workflows have not been added, so there is no truthful pipeline-duration or hosted-runner cost evidence to report. Once CI exists, record the run URL, duration, and whether dependency/image caching changed it.
+The project is currently below continuous integration: tests are runnable locally, but no server automatically runs them on every push or pull request. The next maturity rung is continuous integration, which will run linting, type checks, backend/frontend tests, and Compose smoke tests consistently before a merge. CI workflows have not been added yet, so there is no truthful pipeline-duration or hosted-runner cost evidence to report.
 
 ## 3. Frontend runtime configuration
 
-The frontend uses relative `/api/` calls, while nginx resolves the Docker service name `backend` at runtime (`frontend/nginx.conf:7-13`). This prevents an environment-specific API URL from being compiled into Vite's static files and lets one frontend image run in development and production.
+The exact frontend guarantee is the relative `fetch(path, ...)` call in `frontend/src/api/client.ts:3-4`; nginx resolves `/api/` to the runtime Docker/Kubernetes service name at `frontend/nginx.conf:7-13`. This prevents an environment-specific API URL from being compiled into Vite's static files and lets one frontend image run in development and production. Without the proxy, each environment-specific absolute URL would require rebuilding the frontend image.
 
 ## 4. Triage correctness and resilience
 
-The provider factory selects deterministic rules, simulated behaviour, Groq, or Ollama (`backend/app/providers/triage/factory.py:7-13`). Before accepting a provider response, `TriageService` validates it, records latency, and caches an accepted result for 24 hours (`backend/app/services/triage.py:23-43`). On provider or validation failure it records the error class and returns rule-based fallback output (`backend/app/services/triage.py:45-54`).
+With a live LLM, “correct” means the result passes the `TriageResult` schema, stays within the category/priority enum, and does not make complaint intake unavailable. The provider factory selects deterministic rules, simulated behaviour, Groq, or Ollama (`backend/app/providers/triage/factory.py:7-13`). Before accepting a provider response, `TriageService` validates it, records latency, and caches an accepted result for 24 hours (`backend/app/services/triage.py:23-43`). On provider or validation failure it records the error class and returns rule-based fallback output (`backend/app/services/triage.py:45-54`).
 
-The result is a controlled degradation path rather than an intake outage. Formal provider-quality measurements and cache-hit-rate reporting are still to be collected.
+CI-facing tests are deterministic because the fixture injects `SimulatedTriage` (`backend/tests/conftest.py:18-27`), and the tests explicitly assert fallback for both an exception and malformed output (`backend/tests/test_api.py:31-41`). The injection test asserts that a malicious category outside the schema is not accepted (`backend/tests/test_api.py:87-90`). Formal provider-quality measurements and cache-hit-rate reporting are still to be collected.
 
 ## 5. Scaling decision
 
-Not yet implemented. There is no Kubernetes HPA, load test, or evidence-driven replica threshold in this repository. The next Kubernetes task should define requests/limits, add a backend HPA, run a reproducible load test, and record the observed scaling behaviour.
+`k8s/base/hpa.yaml` defines an autoscaling/v2 backend HPA with `minReplicas: 2`, `maxReplicas: 10`, a 60% CPU target, immediate scale-up, and a 300-second scale-down window. The backend CPU request is `250m` in `k8s/base/backend.yaml`, which gives HPA the denominator it needs. `load/k6-script.js` supplies the repeatable offered load.
+
+Actual HPA lag, watch output, and the replicas-versus-load chart are still pending a real run with metrics-server. Those measurements must be added rather than guessed.
 
 ## 6. Vertical scaling decision
 
-Not yet implemented. No VPA is configured. Any future VPA recommendation should use actual CPU/memory history and avoid automatically changing a latency-sensitive production workload without review.
+`k8s/base/vpa.yaml` defines a backend VPA in recommender mode (`updateMode: Off`). It must stay in this mode because an Auto VPA changing CPU requests alters the denominator used by the CPU-based HPA: raising a request can lower measured utilisation and trigger an HPA scale-in, creating a feedback loop. A human should inspect the VPA target/lower/upper recommendations after a real load test before updating requests.
 
 ## 7. Network and hosted-LLM reasoning
 
