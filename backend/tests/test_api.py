@@ -1,9 +1,32 @@
 from app.config import Settings
 from app.main import create_app
+from app.providers.triage.factory import make_triage_provider
+from app.providers.triage.ollama import OllamaTriage
 from app.providers.triage.simulated import SimulatedTriage
 from tests.conftest import fake_redis
 
 def post(client, payload): return client.post("/api/complaints", json=payload)
+
+def test_ollama_provider_is_selectable_from_environment_settings():
+    provider = make_triage_provider(Settings(triage_provider="ollama"))
+    assert isinstance(provider, OllamaTriage)
+    assert provider.name == "llm:ollama"
+
+def test_ollama_provider_validates_structured_response(monkeypatch):
+    class FakeResponse:
+        def read(self):
+            return b'{"response":"{\\"category\\":\\"water\\",\\"priority\\":\\"high\\",\\"summary\\":\\"Burst pipe.\\",\\"confidence\\":0.9}"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr("app.providers.triage.ollama.urlopen", lambda *_args, **_kwargs: FakeResponse())
+    result = OllamaTriage("http://ollama:11434", "llama3.2:1b").triage("Water pipe burst", "Block A")
+    assert result.category.value == "water"
+    assert result.priority.value == "high"
 
 # Most important failure contract: an unavailable provider never rejects intake.
 def test_provider_raise_falls_back(app, client, complaint_payload):

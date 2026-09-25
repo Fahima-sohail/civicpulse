@@ -30,6 +30,30 @@ services:
       retries: 10
       start_period: 5s
 
+  ollama:
+    image: ollama/ollama:0.34.1
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -eu
+      ollama serve &
+      server_pid=$$!
+      trap 'kill "$$server_pid"; wait "$$server_pid"' INT TERM
+      until ollama list >/dev/null 2>&1; do sleep 1; done
+      ollama pull "$$OLLAMA_MODEL"
+      wait "$$server_pid"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q \"^$$OLLAMA_MODEL\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
   backend:
     build: ./backend
     environment:
@@ -37,6 +61,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       TRIAGE_PROVIDER: ${TRIAGE_PROVIDER:-rules}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     command: ["sh", "-c", "alembic upgrade head && python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
       - "8000:8000"
@@ -50,6 +76,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
@@ -86,3 +114,5 @@ volumes:
   pgdata:
   # Preserves Redis's append-only file across container recreation.
   redisdata:
+  # Retains the downloaded local model so later starts do not download it again.
+  ollama_models:
