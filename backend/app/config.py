@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     simulated_failure_mode: str = "none"
     groq_api_key: str | None = None
     groq_model: str = "llama-3.1-8b-instant"
+    ollama_base_url: str = "http://ollama:11434"
+    ollama_model: str = "llama3.2:1b"
     rate_limit_count: int = 20
     rate_limit_window_seconds: int = 60
 
