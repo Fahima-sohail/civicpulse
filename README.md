@@ -32,4 +32,5 @@ The Node 22 builder stage is approximately 678 MB (it includes build tooling and
 
 - Groq model guess: `llama-3.1-8b-instant`; set `GROQ_API_KEY` and `TRIAGE_PROVIDER=llm` to use it.
 - Rate limit guess: 20 complaint submissions per IP per 60 seconds. Override `RATE_LIMIT_COUNT` and `RATE_LIMIT_WINDOW_SECONDS`.
-- `postgres_data` persists database rows. `redis_data` persists Redis AOF, retaining limiter state/cache across restarts.
+- `pgdata` persists database rows. `redisdata` persists Redis AOF, retaining limiter state/cache across restarts. `ollama_models` retains the local Ollama model after its first download.
+- Set `TRIAGE_PROVIDER=ollama` to use the local `llama3.2:1b` provider. Ollama is edge-only so it can download the model, while the backend remains the only service bridging `edge` and `internal`.
