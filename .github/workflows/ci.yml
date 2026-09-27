@@ -75,7 +75,7 @@ jobs:
       - name: Build frontend image
         run: docker build --tag civicpulse-frontend:ci ./frontend
       - name: Scan backend image for fixable high or critical vulnerabilities
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: civicpulse-backend:ci
           format: table
@@ -84,7 +84,7 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
       - name: Scan frontend image for fixable high or critical vulnerabilities
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: civicpulse-frontend:ci
           format: table
@@ -120,13 +120,13 @@ jobs:
       - name: Exercise the frontend proxy, API, persistence, and cache
         run: |
           set -euo pipefail
-          curl --fail --retry 20 --retry-connrefused http://localhost:8000/ready
+          curl --fail-with-body --silent --show-error --retry 20 --retry-connrefused http://localhost:8000/ready
           complaint='{"text":"Water pipe burst near the school; the road is flooding badly.","location":"Street 12, Gulshan"}'
-          created=$(curl --fail --silent --show-error --request POST http://localhost:5173/api/complaints \
+          created=$(curl --fail-with-body --silent --show-error --request POST http://localhost:8000/api/complaints \
             --header 'Content-Type: application/json' --data "$complaint")
           complaint_id=$(printf '%s' "$created" | jq --raw-output '.id')
           test "$complaint_id" != "null"
-          curl --fail --silent --show-error "http://localhost:5173/api/complaints/$complaint_id" | jq --exit-status '.id == $id' --arg id "$complaint_id"
+          curl --fail-with-body --silent --show-error "http://localhost:5173/api/complaints/$complaint_id" | jq --exit-status '.id == $id' --arg id "$complaint_id"
           first_headers=$(curl --silent --show-error --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
           second_headers=$(curl --silent --show-error --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
           printf '%s' "$first_headers" | grep --fixed-strings 'X-Cache: MISS'
