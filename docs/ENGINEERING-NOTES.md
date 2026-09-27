@@ -1,6 +1,6 @@
 # Engineering notes
 
-These notes record the evidence currently present in the repository. They deliberately do not claim completed CI/CD or Kubernetes work that has not yet been implemented.
+These notes record the evidence currently present in the repository. They deliberately do not claim deployment or load-test results that have not yet been collected.
 
 ## 1. Container image choices
 
@@ -10,7 +10,9 @@ PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.ym
 
 ## 2. Pipeline timing and cost
 
-The project is currently below continuous integration: tests are runnable locally, but no server automatically runs them on every push or pull request. The next maturity rung is continuous integration, which will run linting, type checks, backend/frontend tests, and Compose smoke tests consistently before a merge. CI workflows have not been added yet, so there is no truthful pipeline-duration or hosted-runner cost evidence to report.
+`.github/workflows/ci.yml` runs on pushes to `dev` and pull requests targeting `dev` or `main`. It runs backend linting, type checks, coverage-gated tests, frontend linting/type checks/build/tests, container builds with fixable HIGH/CRITICAL vulnerability scans, rendered-manifest validation, and a Compose smoke test. `.github/workflows/cd.yml` re-tests a `main` merge, publishes SHA-tagged images to GHCR, generates SBOMs, and deploys those immutable images to an ephemeral kind cluster for an Ingress smoke test. The release workflow publishes semver-tagged images and GitHub release notes only when a `v*` tag is pushed.
+
+The first hosted run must still be linked as evidence before reporting actual duration or runner cost; those values must be measured rather than guessed.
 
 ## 3. Frontend runtime configuration
 

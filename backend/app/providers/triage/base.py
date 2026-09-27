@@ -1,6 +1,9 @@
 from typing import Protocol
+
 from pydantic import BaseModel, Field
+
 from app.schemas import Category, Priority
+
 
 class TriageResult(BaseModel):
     category: Category

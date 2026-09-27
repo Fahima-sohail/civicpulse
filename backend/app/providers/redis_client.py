@@ -1,14 +1,16 @@
 import json
 import time
-from typing import Any
+from typing import Any, cast
+
 import redis
+
 
 class RedisClient:
     def __init__(self, url: str):
         self.client = redis.Redis.from_url(url, decode_responses=True)
 
     def get_json(self, key: str) -> dict[str, Any] | None:
-        value = self.client.get(key)
+        value = cast(str | None, self.client.get(key))
         return json.loads(value) if value else None
 
     def set_json(self, key: str, value: dict[str, Any], ttl: int) -> None:

@@ -1,12 +1,14 @@
 import asyncio
 import signal
-import time
 import threading
+import time
 import uuid
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
 from app.config import get_settings
 from app.db import make_engine, make_session_factory
 from app.logging import configure_logging, request_id_var
@@ -17,6 +19,7 @@ from app.routes.api import router
 from app.services.complaints import ComplaintService
 from app.services.metrics import Metrics
 from app.services.triage import TriageService
+
 
 def create_app(settings=None, redis_client=None, session_factory=None, provider=None) -> FastAPI:
     configure_logging()

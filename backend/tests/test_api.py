@@ -1,9 +1,8 @@
 from app.config import Settings
-from app.main import create_app
 from app.providers.triage.factory import make_triage_provider
 from app.providers.triage.ollama import OllamaTriage
 from app.providers.triage.simulated import SimulatedTriage
-from tests.conftest import fake_redis
+
 
 def post(client, payload): return client.post("/api/complaints", json=payload)
 

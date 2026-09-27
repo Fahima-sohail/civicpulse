@@ -1,7 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class Category(StrEnum):
     water = "water"

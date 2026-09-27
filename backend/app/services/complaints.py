@@ -1,8 +1,17 @@
 from uuid import UUID, uuid4
+
 from app.models import Complaint
 from app.providers.redis_client import RedisClient
 from app.repositories.complaints import ComplaintRepository
-from app.schemas import Category, ComplaintCreate, ComplaintPage, ComplaintOut, Priority, StatsOut, Status
+from app.schemas import (
+    Category,
+    ComplaintCreate,
+    ComplaintOut,
+    ComplaintPage,
+    Priority,
+    StatsOut,
+    Status,
+)
 from app.services.triage import TriageService
 
 TRANSITIONS: dict[Status, set[Status]] = {
