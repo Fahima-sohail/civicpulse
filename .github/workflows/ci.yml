@@ -130,11 +130,15 @@ jobs:
           created=$(cat "$RUNNER_TEMP/create-response.json")
           complaint_id=$(printf '%s' "$created" | jq --raw-output '.id')
           test "$complaint_id" != "null"
-          curl --fail-with-body --silent --show-error "http://localhost:5173/api/complaints/$complaint_id" | jq --exit-status '.id == $id' --arg id "$complaint_id"
-          first_headers=$(curl --silent --show-error --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
-          second_headers=$(curl --silent --show-error --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
-          printf '%s' "$first_headers" | grep --fixed-strings 'X-Cache: MISS'
-          printf '%s' "$second_headers" | grep --fixed-strings 'X-Cache: HIT'
+          proxy_response=$(curl --fail-with-body --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 \
+            "http://localhost:5173/api/complaints/$complaint_id")
+          printf '%s' "$proxy_response" | jq --exit-status '.id == $id' --arg id "$complaint_id"
+          first_headers=$(curl --fail-with-body --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 \
+            --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
+          second_headers=$(curl --fail-with-body --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 \
+            --dump-header - --output /dev/null http://localhost:5173/api/stats | tr -d '\r')
+          printf '%s' "$first_headers" | grep --ignore-case --fixed-strings 'X-Cache: MISS'
+          printf '%s' "$second_headers" | grep --ignore-case --fixed-strings 'X-Cache: HIT'
       - name: Show service state after a failure
         if: failure()
         run: |
