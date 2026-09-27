@@ -4,7 +4,7 @@ These notes record the evidence currently present in the repository. They delibe
 
 ## 1. Container image choices
 
-My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is `nginx:1.27-alpine` (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
+My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is the slim `nginx:1.30.5-alpine3.24-slim` image (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
 
 PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.yml:2` and `docker-compose.yml:19`). Ollama uses a dedicated image and persistent `ollama_models` volume (`docker-compose.yml:33-55`); its larger production limit recognises model serving as a heavier workload.
 

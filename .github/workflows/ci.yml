@@ -116,14 +116,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Start the Compose stack and wait for health checks
-        run: docker compose up --build --detach --wait --wait-timeout 900
+        run: TRIAGE_PROVIDER=rules docker compose up --build --detach --wait --wait-timeout 900
       - name: Exercise the frontend proxy, API, persistence, and cache
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error --retry 20 --retry-connrefused http://localhost:8000/ready
           complaint='{"text":"Water pipe burst near the school; the road is flooding badly.","location":"Street 12, Gulshan"}'
-          created=$(curl --fail-with-body --silent --show-error --request POST http://localhost:8000/api/complaints \
+          create_status=$(curl --silent --show-error --output "$RUNNER_TEMP/create-response.json" --write-out '%{http_code}' \
+            --request POST http://localhost:8000/api/complaints \
             --header 'Content-Type: application/json' --data "$complaint")
+          cat "$RUNNER_TEMP/create-response.json"
+          test "$create_status" = "201"
+          created=$(cat "$RUNNER_TEMP/create-response.json")
           complaint_id=$(printf '%s' "$created" | jq --raw-output '.id')
           test "$complaint_id" != "null"
           curl --fail-with-body --silent --show-error "http://localhost:5173/api/complaints/$complaint_id" | jq --exit-status '.id == $id' --arg id "$complaint_id"
