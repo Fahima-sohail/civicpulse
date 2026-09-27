@@ -1,16 +1,18 @@
 # Engineering notes
 
-These notes record the evidence currently present in the repository. They deliberately do not claim completed CI/CD or Kubernetes work that has not yet been implemented.
+These notes record the evidence currently present in the repository. They deliberately do not claim deployment or load-test results that have not yet been collected.
 
 ## 1. Container image choices
 
-My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is `nginx:1.27-alpine` (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
+My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is the slim `nginx:1.30.5-alpine3.24-slim` image (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
 
 PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.yml:2` and `docker-compose.yml:19`). Ollama uses a dedicated image and persistent `ollama_models` volume (`docker-compose.yml:33-55`); its larger production limit recognises model serving as a heavier workload.
 
 ## 2. Pipeline timing and cost
 
-The project is currently below continuous integration: tests are runnable locally, but no server automatically runs them on every push or pull request. The next maturity rung is continuous integration, which will run linting, type checks, backend/frontend tests, and Compose smoke tests consistently before a merge. CI workflows have not been added yet, so there is no truthful pipeline-duration or hosted-runner cost evidence to report.
+`.github/workflows/ci.yml` runs on pushes to `dev` and pull requests targeting `dev` or `main`. It runs backend linting, type checks, coverage-gated tests, frontend linting/type checks/build/tests, container builds with fixable HIGH/CRITICAL vulnerability scans, rendered-manifest validation, and a Compose smoke test. `.github/workflows/cd.yml` re-tests a `main` merge, publishes SHA-tagged images to GHCR, generates SBOMs, and deploys those immutable images to an ephemeral kind cluster for an Ingress smoke test. The release workflow publishes semver-tagged images and GitHub release notes only when a `v*` tag is pushed.
+
+The first hosted run must still be linked as evidence before reporting actual duration or runner cost; those values must be measured rather than guessed.
 
 ## 3. Frontend runtime configuration
 

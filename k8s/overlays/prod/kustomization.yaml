@@ -8,7 +8,7 @@ resources:
 images:
   - name: civicpulse-backend
     newName: ghcr.io/fahima-sohail/civicpulse-backend
-    newTag: latest
+    newTag: REPLACE_AT_DEPLOY
   - name: civicpulse-frontend
     newName: ghcr.io/fahima-sohail/civicpulse-frontend
-    newTag: latest
+    newTag: REPLACE_AT_DEPLOY

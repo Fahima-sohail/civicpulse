@@ -1,9 +1,12 @@
 from collections.abc import Callable
 from uuid import UUID
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
 from app.models import Complaint
 from app.schemas import Category, Priority, Status
+
 
 class ComplaintRepository:
     """The only layer that issues SQLAlchemy/SQL queries."""
@@ -29,7 +32,7 @@ class ComplaintRepository:
             if status: stmt = stmt.where(Complaint.status == status)
             total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
             rows = session.scalars(stmt.order_by(Complaint.created_at.desc()).offset((page - 1) * page_size).limit(page_size)).all()
-            return rows, total
+            return list(rows), total
 
     def update_status(self, complaint_id: UUID, status: Status) -> Complaint | None:
         with self.session_factory() as session:

@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
+
 from sqlalchemy import CheckConstraint, DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.db import Base
 from app.schemas import Category, Priority, Status
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)

@@ -4,6 +4,7 @@ from app.providers.triage.ollama import OllamaTriage
 from app.providers.triage.rules import RuleBasedTriage
 from app.providers.triage.simulated import SimulatedTriage
 
+
 def make_triage_provider(settings: Settings):
     match settings.triage_provider.lower():
         case "rules": return RuleBasedTriage()

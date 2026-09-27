@@ -1,6 +1,7 @@
 import contextvars
 import json
 import logging
+
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
 class JsonFormatter(logging.Formatter):
