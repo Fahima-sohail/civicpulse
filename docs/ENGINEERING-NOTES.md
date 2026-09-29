@@ -12,7 +12,7 @@ PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.ym
 
 `.github/workflows/ci.yml` runs on pushes to `dev` and pull requests targeting `dev` or `main`. It runs backend linting, type checks, coverage-gated tests, frontend linting/type checks/build/tests, container builds with fixable HIGH/CRITICAL vulnerability scans, rendered-manifest validation, and a Compose smoke test. `.github/workflows/cd.yml` re-tests a `main` merge, publishes SHA-tagged images to GHCR, generates SBOMs, and deploys those immutable images to an ephemeral kind cluster for an Ingress smoke test. The release workflow publishes semver-tagged images and GitHub release notes only when a `v*` tag is pushed.
 
-The first hosted run must still be linked as evidence before reporting actual duration or runner cost; those values must be measured rather than guessed.
+The pull-request CI suite has been captured in [`evidence/evidence-ci-cd/ci-cd all tests passed .png`](../../evidence/evidence-ci-cd/ci-cd%20all%20tests%20passed%20.png). It shows all five checks passing. Main-branch CD and release execution evidence remains pending because those workflows are intentionally triggered only after their respective merge/tag events.
 
 ## 3. Frontend runtime configuration
 
@@ -28,11 +28,13 @@ CI-facing tests are deterministic because the fixture injects `SimulatedTriage` 
 
 `k8s/base/hpa.yaml` defines an autoscaling/v2 backend HPA with `minReplicas: 2`, `maxReplicas: 10`, a 60% CPU target, immediate scale-up, and a 300-second scale-down window. The backend CPU request is `250m` in `k8s/base/backend.yaml`, which gives HPA the denominator it needs. `load/k6-script.js` supplies the repeatable offered load.
 
-Actual HPA lag, watch output, and the replicas-versus-load chart are still pending a real run with metrics-server. Those measurements must be added rather than guessed.
+The local kind validation used metrics-server and the repeatable k6 script. The run completed 37,723 requests with 100% successful checks and 0% failed requests; its p95 request duration was 356.22 ms. The HPA watch recorded CPU rising from 1% to 87%, 100%, and 69% against the 60% target, while the backend scaled from 2 to 4 replicas. See [`full k6 result`](../../evidence/evidence%20k8s/full%20k6%20result.png), [`live HPA scaling`](../../evidence/evidence%20k8s/live%20HPA%20scaling.png), and [`HPA rescale events`](../../evidence/evidence%20k8s/hpa-describe-successful-rescale.png).
 
 ## 6. Vertical scaling decision
 
 `k8s/base/vpa.yaml` defines a backend VPA in recommender mode (`updateMode: Off`). It must stay in this mode because an Auto VPA changing CPU requests alters the denominator used by the CPU-based HPA: raising a request can lower measured utilisation and trigger an HPA scale-in, creating a feedback loop. A human should inspect the VPA target/lower/upper recommendations after a real load test before updating requests.
+
+The local recommender produced a recommendation after the load test: a 100m CPU and 250Mi memory target, with an observed uncapped CPU target of 63m. It was intentionally not applied automatically. See [`VPA recommendation`](../../evidence/evidence%20k8s/vpa%20recommendation.png).
 
 ## 7. Network and hosted-LLM reasoning
 
