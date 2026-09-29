@@ -82,6 +82,6 @@ docker compose down
 - [Architecture decisions](docs/adr/)
 - [Runbook](docs/RUNBOOK.md)
 - [Engineering notes](docs/ENGINEERING-NOTES.md)
-- [Evidence folder](docs/evidence/)
+- [Evidence index and screenshots](evidence/README.md)
 
-The evidence folder is intentionally kept in Git but does not yet contain screenshots or a demo video. Capture those after the full stack has been run and tested end-to-end.
+The repository includes Docker, Kubernetes scaling, and pull-request CI evidence. Browser walkthrough, main-branch CD, release, and demo-video evidence are collected separately as those final activities are completed.
