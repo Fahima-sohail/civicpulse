@@ -1,5 +1,6 @@
 from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
 
+
 class Metrics:
     def __init__(self):
         self.registry = CollectorRegistry()

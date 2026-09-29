@@ -1,6 +1,18 @@
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from uuid import UUID
-from app.schemas import Category, ComplaintCreate, ComplaintOut, ComplaintPage, Priority, ProvidersOut, StatsOut, Status, StatusUpdate
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+
+from app.schemas import (
+    Category,
+    ComplaintCreate,
+    ComplaintOut,
+    ComplaintPage,
+    Priority,
+    ProvidersOut,
+    StatsOut,
+    Status,
+    StatusUpdate,
+)
 from app.services.complaints import ComplaintService, InvalidTransitionError, NotFoundError
 
 router = APIRouter()

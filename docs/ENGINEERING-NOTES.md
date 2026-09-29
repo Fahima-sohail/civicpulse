@@ -1,0 +1,51 @@
+# Engineering notes
+
+These notes record the evidence currently present in the repository. They deliberately do not claim deployment or load-test results that have not yet been collected.
+
+## 1. Container image choices
+
+My laptop and a CI runner can differ in host OS, installed Python, and installed frontend tools. Those differences are frozen by container definitions rather than assumed from the host: the backend runtime is `python:3.12-slim` (`backend/Dockerfile:7`), the frontend build stage is `node:22-alpine` (`frontend/Dockerfile:1`), and the frontend runtime is the slim `nginx:1.30.5-alpine3.24-slim` image (`frontend/Dockerfile:12`). Kubernetes then gives the backend a defined scheduling budget (`k8s/base/backend.yaml:104-110`) rather than relying on whichever CPU/memory happens to be free on a laptop.
+
+PostgreSQL and Redis use Alpine images in both Compose files (`docker-compose.yml:2` and `docker-compose.yml:19`). Ollama uses a dedicated image and persistent `ollama_models` volume (`docker-compose.yml:33-55`); its larger production limit recognises model serving as a heavier workload.
+
+## 2. Pipeline timing and cost
+
+`.github/workflows/ci.yml` runs on pushes to `dev` and pull requests targeting `dev` or `main`. It runs backend linting, type checks, coverage-gated tests, frontend linting/type checks/build/tests, container builds with fixable HIGH/CRITICAL vulnerability scans, rendered-manifest validation, and a Compose smoke test. `.github/workflows/cd.yml` re-tests a `main` merge, publishes SHA-tagged images to GHCR, generates SBOMs, and deploys those immutable images to an ephemeral kind cluster for an Ingress smoke test. The release workflow publishes semver-tagged images and GitHub release notes only when a `v*` tag is pushed.
+
+The first hosted run must still be linked as evidence before reporting actual duration or runner cost; those values must be measured rather than guessed.
+
+## 3. Frontend runtime configuration
+
+The exact frontend guarantee is the relative `fetch(path, ...)` call in `frontend/src/api/client.ts:3-4`; nginx resolves `/api/` to the runtime Docker/Kubernetes service name at `frontend/nginx.conf:7-13`. This prevents an environment-specific API URL from being compiled into Vite's static files and lets one frontend image run in development and production. Without the proxy, each environment-specific absolute URL would require rebuilding the frontend image.
+
+## 4. Triage correctness and resilience
+
+With a live LLM, “correct” means the result passes the `TriageResult` schema, stays within the category/priority enum, and does not make complaint intake unavailable. The provider factory selects deterministic rules, simulated behaviour, Groq, or Ollama (`backend/app/providers/triage/factory.py:7-13`). Before accepting a provider response, `TriageService` validates it, records latency, and caches an accepted result for 24 hours (`backend/app/services/triage.py:23-43`). On provider or validation failure it records the error class and returns rule-based fallback output (`backend/app/services/triage.py:45-54`).
+
+CI-facing tests are deterministic because the fixture injects `SimulatedTriage` (`backend/tests/conftest.py:18-27`), and the tests explicitly assert fallback for both an exception and malformed output (`backend/tests/test_api.py:31-41`). The injection test asserts that a malicious category outside the schema is not accepted (`backend/tests/test_api.py:87-90`). Formal provider-quality measurements and cache-hit-rate reporting are still to be collected.
+
+## 5. Scaling decision
+
+`k8s/base/hpa.yaml` defines an autoscaling/v2 backend HPA with `minReplicas: 2`, `maxReplicas: 10`, a 60% CPU target, immediate scale-up, and a 300-second scale-down window. The backend CPU request is `250m` in `k8s/base/backend.yaml`, which gives HPA the denominator it needs. `load/k6-script.js` supplies the repeatable offered load.
+
+Actual HPA lag, watch output, and the replicas-versus-load chart are still pending a real run with metrics-server. Those measurements must be added rather than guessed.
+
+## 6. Vertical scaling decision
+
+`k8s/base/vpa.yaml` defines a backend VPA in recommender mode (`updateMode: Off`). It must stay in this mode because an Auto VPA changing CPU requests alters the denominator used by the CPU-based HPA: raising a request can lower measured utilisation and trigger an HPA scale-in, creating a feedback loop. A human should inspect the VPA target/lower/upper recommendations after a real load test before updating requests.
+
+## 7. Network and hosted-LLM reasoning
+
+`frontend` belongs only to `edge`; PostgreSQL and Redis belong only to `internal`; only `backend` belongs to both (`docker-compose.yml:57-81` and `docker-compose.yml:89-110`). Docker marks `internal` as an internal network, so it does not provide an external route. The backend retains its ordinary `edge` interface and can use that route for an optional Groq request. The exact isolation demonstration is:
+
+```powershell
+docker compose exec frontend ping -c 1 postgres
+```
+
+It must fail. The backend internet test is documented in [the runbook](RUNBOOK.md).
+
+## 8. Operational learning
+
+On 24 September 2026, a clean `docker compose up --build` failed during the first Alembic run with `psycopg.errors.DuplicateObject: type "category" already exists`. The initial assumption was that a previous database volume contained stale state, but the same failure on a fresh database proved that the migration itself created the enum twice. The decisive SQL log was `CREATE TYPE category AS ENUM (...)` immediately followed by the duplicate-type error.
+
+The migration now owns each PostgreSQL enum exactly once: it creates shared `postgresql.ENUM` objects with `checkfirst=True`, then passes those same objects to `op.create_table()` with `create_type=False` (`backend/alembic/versions/0001_initial.py:16-50`). The identical pattern is used for `category`, `priority`, and `status`, so table creation cannot emit a second `CREATE TYPE`. This made fresh-database migrations repeatable and is covered by the clean Compose startup path.

@@ -1,6 +1,7 @@
 from app.providers.triage.base import TriageResult
 from app.schemas import Category, Priority
 
+
 class RuleBasedTriage:
     name = "rules"
     keywords = {

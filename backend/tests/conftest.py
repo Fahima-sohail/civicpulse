@@ -4,11 +4,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
 from app.config import Settings
 from app.db import Base
 from app.main import create_app
 from app.providers.redis_client import RedisClient
 from app.providers.triage.simulated import SimulatedTriage
+
 
 def fake_redis():
     wrapper = RedisClient.__new__(RedisClient)

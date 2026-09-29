@@ -1,6 +1,8 @@
 import hashlib
+
 from app.providers.triage.base import TriageError, TriageResult
 from app.providers.triage.rules import RuleBasedTriage
+
 
 class SimulatedTriage:
     """Offline deterministic fake. failure_mode: none, raise, malformed_json."""

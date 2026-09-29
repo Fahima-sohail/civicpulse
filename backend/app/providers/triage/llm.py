@@ -1,9 +1,12 @@
 import json
 import random
 import time
+
 from openai import APIStatusError, APITimeoutError, OpenAI
 from pydantic import ValidationError
+
 from app.providers.triage.base import TriageError, TriageResult
+
 
 class LLMTriage:
     name = "llm:groq"
