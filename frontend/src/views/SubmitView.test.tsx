@@ -22,4 +22,15 @@ describe("SubmitView", () => {
     await user.type(screen.getByLabelText("What is happening?"), "Water pipe burst near school, road is flooding."); await user.type(screen.getByLabelText("Location"), "Block A"); await user.click(screen.getByRole("button", { name: "Submit report" }));
     expect(await screen.findByText(/34 seconds/i)).toBeInTheDocument();
   });
+
+  it("renders field-level validation feedback returned by the server", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: [{ loc: ["body", "text"], msg: "Text must be at least 10 characters." }] }), { status: 400, headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup(); render(<SubmitView />);
+    await user.type(screen.getByLabelText("What is happening?"), "Water pipe burst near school, road is flooding.");
+    await user.type(screen.getByLabelText("Location"), "Block A");
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+
+    expect(await screen.findByText("Text must be at least 10 characters.")).toBeInTheDocument();
+    expect(screen.getByLabelText("What is happening?")).toHaveAttribute("aria-invalid", "true");
+  });
 });
