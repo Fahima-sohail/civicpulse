@@ -9,29 +9,37 @@ const categories: Category[] = ["water", "electricity", "sanitation", "roads", "
 const priorities: Priority[] = ["high", "normal", "low"];
 const statuses: Status[] = ["open", "in_progress", "resolved", "rejected"];
 
+function formattedDate(value: string) {
+  return new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+
 export function DashboardView() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<{ category?: Category; priority?: Priority; status?: Status }>({});
   const [data, setData] = useState<ComplaintPage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const pageSize = 8;
-  const fetchPage = async () => { setLoading(true); try { setData(await api.getComplaints({ ...filters, page, pageSize })); } catch (error) { setNotice((error as ApiError).detail); } finally { setLoading(false); } };
+  const fetchPage = async () => { setLoading(true); setPageError(null); try { setData(await api.getComplaints({ ...filters, page, pageSize })); } catch (error) { setPageError((error as ApiError).detail); } finally { setLoading(false); } };
   useEffect(() => { void fetchPage(); }, [page, filters.category, filters.priority, filters.status]);
   const setFilter = (key: "category" | "priority" | "status", value: string) => { setPage(1); setFilters((current) => ({ ...current, [key]: value || undefined })); };
+  const clearFilters = () => { setPage(1); setFilters({}); };
   const update = async (id: string, status: Status) => { try { await api.updateStatus(id, status); await fetchPage(); } catch (error) { setNotice((error as ApiError).detail); } };
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
+  const activeFilters = Boolean(filters.category || filters.priority || filters.status);
   return <section className="view dashboard-view">
     <div className="view-intro compact"><p className="eyebrow">Operations desk</p><h1>Today’s civic pulse.</h1><p>Review and update reports as they move through the municipal workflow.</p></div>
     <form className="filters card" aria-label="Complaint filters" onSubmit={(event) => event.preventDefault()}>
       <label>Category<select value={filters.category ?? ""} onChange={(e) => setFilter("category", e.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Priority<select value={filters.priority ?? ""} onChange={(e) => setFilter("priority", e.target.value)}><option value="">All priorities</option>{priorities.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Status<select value={filters.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}><option value="">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <span className="result-count" aria-live="polite">{data?.total ?? 0} reports</span>
+      <span className="result-count" aria-live="polite">{data?.total ?? 0} reports</span>{activeFilters && <button className="clear-filters" type="button" onClick={clearFilters}>Clear filters</button>}
     </form>
-    {loading ? <div className="center-loading"><Loading label="Loading reports…" /></div> : <div className="complaint-list" aria-live="polite">{data?.items.map((item) => <article className="complaint-card" key={item.id}>
+    {loading ? <div className="center-loading"><Loading label="Loading reports…" /></div> : pageError ? <section className="empty-state" role="alert"><p>Unable to load reports: {pageError}</p><button onClick={() => void fetchPage()}>Try again</button></section> : <div className="complaint-list" aria-live="polite">{data?.items.map((item) => <article className="complaint-card" key={item.id}>
       <div className="complaint-top"><div><CategoryLabel category={item.category} /><h2>{item.ai_summary || item.text}</h2></div><PriorityBadge priority={item.priority} /></div>
       <p className="complaint-location">⌖ {item.location}</p><p className="complaint-copy">{item.text}</p>
+      <div className="complaint-meta"><span>Reported {formattedDate(item.created_at)}</span><span>Triaged by {item.triaged_by}</span></div>
       <div className="complaint-bottom"><StatusBadge status={item.status} /><label className="status-control">Update status<select aria-label={`Update status for ${item.id}`} value={item.status} onChange={(e) => void update(item.id, e.target.value as Status)}>{statuses.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}</select></label></div>
     </article>)}{data?.items.length === 0 && <div className="empty-state">No reports match these filters.</div>}</div>}
     <nav className="pagination" aria-label="Complaint pagination"><button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span aria-live="polite">Page {page} of {totalPages}</span><button disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Next</button></nav>
