@@ -12,6 +12,8 @@ jobs:
   test:
     name: Re-test merged software
     runs-on: ubuntu-24.04
+    env:
+      TRIAGE_PROVIDER: simulated
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

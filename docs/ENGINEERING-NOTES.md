@@ -46,4 +46,6 @@ It must fail. The backend internet test is documented in [the runbook](RUNBOOK.m
 
 ## 8. Operational learning
 
-No real production incident has yet been recorded, so this project does not invent one as evidence. When a genuine local or deployment troubleshooting event occurs, add its date, symptom, command/output (with secrets removed), root cause, fix, and prevention measure here.
+On 24 September 2026, a clean `docker compose up --build` failed during the first Alembic run with `psycopg.errors.DuplicateObject: type "category" already exists`. The initial assumption was that a previous database volume contained stale state, but the same failure on a fresh database proved that the migration itself created the enum twice. The decisive SQL log was `CREATE TYPE category AS ENUM (...)` immediately followed by the duplicate-type error.
+
+The migration now owns each PostgreSQL enum exactly once: it creates shared `postgresql.ENUM` objects with `checkfirst=True`, then passes those same objects to `op.create_table()` with `create_type=False` (`backend/alembic/versions/0001_initial.py:16-50`). The identical pattern is used for `category`, `priority`, and `status`, so table creation cannot emit a second `CREATE TYPE`. This made fresh-database migrations repeatable and is covered by the clean Compose startup path.
