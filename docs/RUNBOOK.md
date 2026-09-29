@@ -45,6 +45,8 @@ The frontend `ping` command must fail: it has no DNS route to `postgres` because
 5. Complaint intake should still succeed through the deterministic `rules:fallback` path. Check `/api/meta/providers` and backend logs for the recorded fallback.
 6. If a model provider remains unhealthy, set `TRIAGE_PROVIDER=rules`, then recreate the backend: `docker compose up --detach --force-recreate backend`.
 
+The exact local-model retry, validation, and fallback policy is documented in [OLLAMA-RELIABILITY.md](OLLAMA-RELIABILITY.md).
+
 ## Stop, reset, and recover
 
 ```powershell
