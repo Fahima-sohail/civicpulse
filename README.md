@@ -41,6 +41,28 @@ docker compose up --build
 
 The first start downloads the Ollama model (`llama3.2:1b` by default), so it can take several minutes and needs approximately 1.3 GB of download space. When the health checks are ready, open <http://localhost:5173>. Backend liveness is available at <http://localhost:8000/health>.
 
+### Verify the complete complaint path
+
+Submit a report in the web interface, then use these PowerShell commands to verify that the backend is ready and that the report was persisted:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/ready
+
+$complaint = Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/api/complaints `
+  -ContentType "application/json" `
+  -Body (@{
+    text = "Water pipe burst near the school gate and the road is flooding."
+    location = "Street 12, Gulshan"
+  } | ConvertTo-Json)
+
+$complaint
+Invoke-RestMethod "http://localhost:8000/api/complaints/$($complaint.id)"
+Invoke-RestMethod http://localhost:8000/api/meta/providers
+```
+
+For the default provider, `triaged_by` is `rules`. With Ollama enabled it is `llm:ollama`; if the model cannot answer safely, intake still succeeds with `rules:fallback`.
+
 To stop the stack while retaining database, Redis, and model data:
 
 ```powershell
@@ -58,6 +80,24 @@ docker compose down
 | `ollama` | Offline/local model triage | Backend calls the local `ollama` service over `edge` |
 | `llm` or `groq` | Hosted LLM triage | Backend calls Groq over outbound HTTPS; requires `GROQ_API_KEY` |
 
+### Use the local Ollama model
+
+The stack starts the Ollama container in every development Compose run, but the active triage provider remains `rules` unless you opt in. In an untracked root `.env` file, set:
+
+```env
+TRIAGE_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.2:1b
+```
+
+Then recreate the backend so it reads the changed setting:
+
+```powershell
+docker compose up --detach --force-recreate backend
+```
+
+Submit a new complaint sentence and inspect `GET /api/meta/providers`. A triage result is cached for 24 hours by the SHA-256 hash of its complaint text, so an identical sentence may legitimately return an older cached provider result after you switch providers.
+
 ## API
 
 | Method | Path | Purpose |
@@ -69,6 +109,8 @@ docker compose down
 | `GET` | `/api/stats` | Get cached aggregate statistics |
 | `GET` | `/api/meta/providers` | Inspect recent provider outcomes |
 | `GET` | `/health`, `/ready`, `/metrics` | Liveness, readiness, and metrics |
+
+The valid status transitions are `open → in_progress → resolved`, plus `open → rejected` and `in_progress → rejected`. `resolved` and `rejected` are terminal states; an invalid request receives the backend's explicit `409` transition message.
 
 ## Operations and security notes
 
@@ -82,6 +124,7 @@ docker compose down
 - [Architecture decisions](docs/adr/)
 - [Runbook](docs/RUNBOOK.md)
 - [Engineering notes](docs/ENGINEERING-NOTES.md)
-- [Evidence folder](docs/evidence/)
+- [Ollama reliability behaviour](docs/OLLAMA-RELIABILITY.md)
+- [Evidence folder](evidence/)
 
-The evidence folder is intentionally kept in Git but does not yet contain screenshots or a demo video. Capture those after the full stack has been run and tested end-to-end.
+The evidence folder contains captured Docker, Kubernetes, and CI/CD screenshots. Add a short caption or capture command alongside new evidence so its purpose remains clear during assessment.
