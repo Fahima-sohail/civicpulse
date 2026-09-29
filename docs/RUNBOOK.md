@@ -6,7 +6,7 @@ This runbook covers the Docker Compose stack and the Kubernetes manifests in `k8
 
 From the repository root:
 
-```powershell
+```bash
 docker compose up --build --detach --wait
 docker compose ps
 ```
@@ -15,7 +15,7 @@ The first start can take longer because Ollama downloads the configured model. W
 
 ## Read logs
 
-```powershell
+```bash
 docker compose logs --follow backend
 docker compose logs --follow frontend
 docker compose logs --follow postgres
@@ -27,7 +27,7 @@ Use `Ctrl+C` to stop following logs; it does not stop the containers.
 
 ## Verify health and network isolation
 
-```powershell
+```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/ready
 docker compose exec frontend ping -c 1 postgres
@@ -39,7 +39,7 @@ The frontend `ping` command must fail: it has no DNS route to `postgres` because
 ## Triage failure or slow triage
 
 1. Inspect backend logs: `docker compose logs --tail 200 backend`.
-2. Check the configured provider: `docker compose exec backend env | Select-String TRIAGE_PROVIDER`.
+2. Check the configured provider: `docker compose exec backend env | grep TRIAGE_PROVIDER`.
 3. For Groq, ensure `GROQ_API_KEY` is present in local `.env`; never paste it into a log, issue, or commit.
 4. For Ollama, check `docker compose logs --tail 200 ollama` and confirm the configured model is listed: `docker compose exec ollama ollama list`.
 5. Complaint intake should still succeed through the deterministic `rules:fallback` path. Check `/api/meta/providers` and backend logs for the recorded fallback.
@@ -47,14 +47,14 @@ The frontend `ping` command must fail: it has no DNS route to `postgres` because
 
 ## Stop, reset, and recover
 
-```powershell
+```bash
 docker compose down
 docker compose up --build --detach --wait
 ```
 
 The first command retains named volumes. Only use this destructive reset when you intentionally want to delete local data and models:
 
-```powershell
+```bash
 docker compose down --volumes
 ```
 
@@ -62,7 +62,7 @@ docker compose down --volumes
 
 Set credentials and image variables in a deployment environment, then validate and start:
 
-```powershell
+```bash
 docker compose --env-file .env -f compose.prod.yaml config
 docker compose --env-file .env -f compose.prod.yaml up --detach
 ```
@@ -73,7 +73,7 @@ Production uses pre-built images and does not bind-mount source code. PostgreSQL
 
 Prerequisites are a local kind/k3d cluster, an nginx Ingress controller, metrics-server, and VPA CRDs/recommender. Build/load local images, then apply the development overlay:
 
-```powershell
+```bash
 docker build -t civicpulse-backend:dev ./backend
 docker build -t civicpulse-frontend:dev ./frontend
 kubectl apply -k k8s/overlays/dev
@@ -86,7 +86,7 @@ Read Kubernetes logs with `kubectl -n civicpulse logs deployment/backend --tail=
 
 To roll back a failing deployment, use:
 
-```powershell
+```bash
 kubectl -n civicpulse rollout undo deployment/backend
 kubectl -n civicpulse rollout undo deployment/frontend
 ```

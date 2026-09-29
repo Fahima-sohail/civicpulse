@@ -35,7 +35,7 @@ The backend is deliberately the only service connected to both networks. The fro
 2. Optionally copy `.env.example` to `.env` and replace placeholder values only if you need Groq.
 3. From this directory, run:
 
-```powershell
+```bash
 docker compose up --build
 ```
 
@@ -43,7 +43,7 @@ The first start downloads the Ollama model (`llama3.2:1b` by default), so it can
 
 To stop the stack while retaining database, Redis, and model data:
 
-```powershell
+```bash
 docker compose down
 ```
 

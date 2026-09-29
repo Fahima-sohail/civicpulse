@@ -14,7 +14,7 @@ The manifests use Kustomize with a shared `base` and `dev`/`prod` overlays. They
 
 ## Build and load local images for a kind cluster
 
-```powershell
+```bash
 docker build -t civicpulse-backend:dev ./backend
 docker build -t civicpulse-frontend:dev ./frontend
 kind create cluster --name civicpulse
@@ -26,7 +26,7 @@ Install an nginx Ingress controller, metrics-server, and VPA using their officia
 
 ## Deploy the development overlay
 
-```powershell
+```bash
 kubectl apply -k k8s/overlays/dev
 kubectl -n civicpulse wait --for=condition=complete job/backend-migrate-seed --timeout=180s
 kubectl -n civicpulse rollout status statefulset/postgres
@@ -41,7 +41,7 @@ Map the hostname to the local ingress address, then open `http://civicpulse.loca
 
 ## Validate and load test
 
-```powershell
+```bash
 kubectl kustomize k8s/overlays/dev
 kubectl -n civicpulse get pods,svc,ingress,hpa,pdb,pvc
 kubectl -n civicpulse get hpa backend -w
@@ -52,7 +52,7 @@ Save the `get hpa -w` output and plot replicas against offered load for the assi
 
 ## Roll back and remove
 
-```powershell
+```bash
 kubectl -n civicpulse rollout undo deployment/backend
 kubectl -n civicpulse rollout undo deployment/frontend
 kubectl delete -k k8s/overlays/dev

@@ -40,7 +40,7 @@ The local recommender produced a recommendation after the load test: a 100m CPU 
 
 `frontend` belongs only to `edge`; PostgreSQL and Redis belong only to `internal`; only `backend` belongs to both (`docker-compose.yml:57-81` and `docker-compose.yml:89-110`). Docker marks `internal` as an internal network, so it does not provide an external route. The backend retains its ordinary `edge` interface and can use that route for an optional Groq request. The exact isolation demonstration is:
 
-```powershell
+```bash
 docker compose exec frontend ping -c 1 postgres
 ```
 
