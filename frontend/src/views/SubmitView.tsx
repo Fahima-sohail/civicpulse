@@ -33,7 +33,8 @@ export function SubmitView() {
       setValues(initial);
     } catch (caught) {
       const error = caught as ApiError;
-      setMessage(error.status === 429 ? `We are receiving many reports right now. Please try again in ${error.retryAfter ?? "a moment"} seconds.` : error.detail);
+      if (error.fieldErrors) setErrors((current) => ({ ...current, ...error.fieldErrors }));
+      setMessage(error.status === 429 ? `We are receiving many reports right now. Please try again in ${error.retryAfter ?? "a moment"} seconds.` : error.fieldErrors ? null : error.detail);
     } finally { setSubmitting(false); }
   }
 
