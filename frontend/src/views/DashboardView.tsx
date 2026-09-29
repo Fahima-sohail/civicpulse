@@ -23,18 +23,18 @@ export function DashboardView() {
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
   return <section className="view dashboard-view">
     <div className="view-intro compact"><p className="eyebrow">Operations desk</p><h1>Today’s civic pulse.</h1><p>Review and update reports as they move through the municipal workflow.</p></div>
-    <div className="filters card" aria-label="Complaint filters">
+    <form className="filters card" aria-label="Complaint filters" onSubmit={(event) => event.preventDefault()}>
       <label>Category<select value={filters.category ?? ""} onChange={(e) => setFilter("category", e.target.value)}><option value="">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Priority<select value={filters.priority ?? ""} onChange={(e) => setFilter("priority", e.target.value)}><option value="">All priorities</option>{priorities.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Status<select value={filters.status ?? ""} onChange={(e) => setFilter("status", e.target.value)}><option value="">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <span className="result-count">{data?.total ?? 0} reports</span>
-    </div>
-    {loading ? <div className="center-loading"><Loading label="Loading reports…" /></div> : <div className="complaint-list">{data?.items.map((item) => <article className="complaint-card" key={item.id}>
+      <span className="result-count" aria-live="polite">{data?.total ?? 0} reports</span>
+    </form>
+    {loading ? <div className="center-loading"><Loading label="Loading reports…" /></div> : <div className="complaint-list" aria-live="polite">{data?.items.map((item) => <article className="complaint-card" key={item.id}>
       <div className="complaint-top"><div><CategoryLabel category={item.category} /><h2>{item.ai_summary || item.text}</h2></div><PriorityBadge priority={item.priority} /></div>
       <p className="complaint-location">⌖ {item.location}</p><p className="complaint-copy">{item.text}</p>
       <div className="complaint-bottom"><StatusBadge status={item.status} /><label className="status-control">Update status<select aria-label={`Update status for ${item.id}`} value={item.status} onChange={(e) => void update(item.id, e.target.value as Status)}>{statuses.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}</select></label></div>
     </article>)}{data?.items.length === 0 && <div className="empty-state">No reports match these filters.</div>}</div>}
-    <div className="pagination"><button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {totalPages}</span><button disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Next</button></div>
+    <nav className="pagination" aria-label="Complaint pagination"><button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span aria-live="polite">Page {page} of {totalPages}</span><button disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Next</button></nav>
     {notice && <Toast message={notice} onDismiss={() => setNotice(null)} />}
   </section>;
 }
