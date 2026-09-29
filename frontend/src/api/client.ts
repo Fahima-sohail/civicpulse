@@ -1,13 +1,27 @@
 import type { ApiError, Category, Complaint, ComplaintInput, ComplaintPage, Priority, Providers, Stats, Status } from "./types";
 
+type ValidationIssue = { loc?: unknown[]; msg?: unknown };
+
+function validationErrors(detail: unknown): Record<string, string> | undefined {
+  if (!Array.isArray(detail)) return undefined;
+  const errors = detail.reduce<Record<string, string>>((collected, issue: ValidationIssue) => {
+    const field = issue.loc?.at(-1);
+    if (typeof field === "string" && typeof issue.msg === "string") collected[field] = issue.msg;
+    return collected;
+  }, {});
+  return Object.keys(errors).length ? errors : undefined;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<{ data: T; response: Response }> {
   const response = await fetch(path, { headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) }, ...init });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    const error = new Error(typeof body.detail === "string" ? body.detail : "The request could not be completed.") as ApiError;
+    const fieldErrors = validationErrors(body.detail);
+    const error = new Error(typeof body.detail === "string" ? body.detail : "Please review the highlighted fields.") as ApiError;
     error.status = response.status;
     error.detail = error.message;
     error.retryAfter = response.headers.get("Retry-After");
+    error.fieldErrors = fieldErrors;
     throw error;
   }
   return { data: await response.json() as T, response };
