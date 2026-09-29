@@ -16,11 +16,13 @@ jobs:
       TRIAGE_PROVIDER: simulated
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/pyproject.toml
+
       - name: Test backend
         working-directory: backend
         run: |
@@ -29,11 +31,13 @@ jobs:
           ruff check app tests
           mypy app
           pytest --cov=app --cov-fail-under=65
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
       - name: Test frontend
         working-directory: frontend
         run: |
@@ -54,12 +58,15 @@ jobs:
       frontend_digest: ${{ steps.frontend.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: docker/setup-buildx-action@v3
+
       - name: Build and publish backend image
         id: backend
         uses: docker/build-push-action@v6
@@ -70,6 +77,7 @@ jobs:
           tags: |
             ghcr.io/fahima-sohail/civicpulse-backend:${{ github.sha }}
             ghcr.io/fahima-sohail/civicpulse-backend:latest
+
       - name: Build and publish frontend image
         id: frontend
         uses: docker/build-push-action@v6
@@ -80,11 +88,13 @@ jobs:
           tags: |
             ghcr.io/fahima-sohail/civicpulse-frontend:${{ github.sha }}
             ghcr.io/fahima-sohail/civicpulse-frontend:latest
+
       - name: Generate backend SBOM with Syft
         uses: anchore/sbom-action@v0
         with:
           image: ghcr.io/fahima-sohail/civicpulse-backend:${{ github.sha }}
           artifact-name: civicpulse-backend-sbom
+
       - name: Generate frontend SBOM with Syft
         uses: anchore/sbom-action@v0
         with:
@@ -100,22 +110,26 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create kind cluster
         uses: helm/kind-action@v1
         with:
           cluster_name: civicpulse
           config: .github/kind-config.yaml
           wait: 120s
+
       - name: Install nginx Ingress controller
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.13.4/deploy/static/provider/kind/deploy.yaml
           kubectl wait --namespace ingress-nginx --for=condition=Ready pods \
             --selector=app.kubernetes.io/component=controller --timeout=180s
+
       - name: Install the VPA CRD and recommender
         run: |
           git clone --depth 1 https://github.com/kubernetes/autoscaler.git "$RUNNER_TEMP/autoscaler"
@@ -123,16 +137,19 @@ jobs:
           git fetch --depth 1 origin tag vertical-pod-autoscaler-1.7.1
           git checkout tags/vertical-pod-autoscaler-1.7.1
           ./vertical-pod-autoscaler/hack/vpa-up.sh
+
       - name: Load SHA-tagged images into kind
         run: |
           docker pull ghcr.io/fahima-sohail/civicpulse-backend:${{ github.sha }}
           docker pull ghcr.io/fahima-sohail/civicpulse-frontend:${{ github.sha }}
           kind load docker-image ghcr.io/fahima-sohail/civicpulse-backend:${{ github.sha }} --name civicpulse
           kind load docker-image ghcr.io/fahima-sohail/civicpulse-frontend:${{ github.sha }} --name civicpulse
+
       - name: Apply the production overlay with the immutable SHA tag
         run: |
           sed -i "s/REPLACE_AT_DEPLOY/${{ github.sha }}/g" k8s/overlays/prod/kustomization.yaml
           kubectl apply -k k8s/overlays/prod
+
       - name: Wait for migration and rolling deployments
         run: |
           kubectl --namespace civicpulse wait --for=condition=complete job/backend-migrate-seed --timeout=300s
@@ -140,14 +157,18 @@ jobs:
           kubectl --namespace civicpulse rollout status deployment/redis --timeout=180s
           kubectl --namespace civicpulse rollout status deployment/backend --timeout=180s
           kubectl --namespace civicpulse rollout status deployment/frontend --timeout=180s
+
       - name: Smoke test the Ingress and print autoscaling state
         run: |
           curl --fail --retry 30 --retry-connrefused --header 'Host: civicpulse.local' \
             'http://127.0.0.1/api/complaints?page=1&page_size=1'
           kubectl --namespace civicpulse get hpa
+
       - name: Print Kubernetes diagnostics after a failure
         if: failure()
         run: |
           kubectl get pods --all-namespaces
           kubectl --namespace civicpulse get events --sort-by=.lastTimestamp
+          kubectl --namespace civicpulse describe job/backend-migrate-seed || true
+          kubectl --namespace civicpulse logs job/backend-migrate-seed --all-containers=true --tail=200 || true
           kubectl --namespace civicpulse logs deployment/backend --all-containers --tail=200 || true
