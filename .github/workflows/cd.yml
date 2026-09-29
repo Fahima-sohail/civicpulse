@@ -118,9 +118,11 @@ jobs:
             --selector=app.kubernetes.io/component=controller --timeout=180s
       - name: Install the VPA CRD and recommender
         run: |
-          git clone --depth 1 --branch vertical-pod-autoscaler-1.7.1 \
-            https://github.com/kubernetes/autoscaler.git "$RUNNER_TEMP/autoscaler"
-          "$RUNNER_TEMP/autoscaler/vertical-pod-autoscaler/hack/vpa-up.sh"
+          git clone --depth 1 https://github.com/kubernetes/autoscaler.git "$RUNNER_TEMP/autoscaler"
+          cd "$RUNNER_TEMP/autoscaler"
+          git fetch --depth 1 origin tag vertical-pod-autoscaler-1.7.1
+          git checkout tags/vertical-pod-autoscaler-1.7.1
+          ./vertical-pod-autoscaler/hack/vpa-up.sh
       - name: Load SHA-tagged images into kind
         run: |
           docker pull ghcr.io/fahima-sohail/civicpulse-backend:${{ github.sha }}
