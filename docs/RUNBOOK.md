@@ -13,6 +13,27 @@ docker compose ps
 
 The first start can take longer because Ollama downloads the configured model. Wait for all services to report healthy before testing the website at <http://localhost:5173>.
 
+## Verify a complaint end to end
+
+Run this from PowerShell after `/ready` succeeds. It verifies intake, persistence, and triage metadata without relying on the browser:
+
+```powershell
+$body = @{
+  text = "Water pipe burst near the school gate and the road is flooding."
+  location = "Street 12, Gulshan"
+} | ConvertTo-Json
+
+$complaint = Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/api/complaints `
+  -ContentType "application/json" `
+  -Body $body
+
+Invoke-RestMethod "http://localhost:8000/api/complaints/$($complaint.id)"
+Invoke-RestMethod http://localhost:8000/api/meta/providers
+```
+
+The first response must be `201` and include `id`, `category`, `priority`, `ai_summary`, `triaged_by`, and `triage_latency_ms`. The second request must return the same id. Provider metadata records the last 20 outcomes, including whether rules fallback was used.
+
 ## Read logs
 
 ```powershell
@@ -47,6 +68,24 @@ The frontend `ping` command must fail: it has no DNS route to `postgres` because
 
 The exact local-model retry, validation, and fallback policy is documented in [OLLAMA-RELIABILITY.md](OLLAMA-RELIABILITY.md).
 
+## Switch triage providers safely
+
+Provider selection happens when the backend starts. Update the untracked root `.env` file, then recreate only the backend:
+
+```env
+TRIAGE_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.2:1b
+```
+
+```powershell
+docker compose up --detach --force-recreate backend
+docker compose exec backend env | Select-String TRIAGE_PROVIDER
+Invoke-RestMethod http://localhost:8000/api/meta/providers
+```
+
+Use a new complaint sentence when demonstrating the change. Results are cached for 24 hours by the SHA-256 hash of complaint text, so repeated text can legitimately return a cached result generated before the provider switch. Do not use `FLUSHALL` during a normal demonstration because Redis also holds the distributed rate-limit counters.
+
 ## Stop, reset, and recover
 
 ```powershell
@@ -59,6 +98,22 @@ The first command retains named volumes. Only use this destructive reset when yo
 ```powershell
 docker compose down --volumes
 ```
+
+## Preserve or inspect local data
+
+The normal `docker compose down` command retains the `pgdata`, `redisdata`, and `ollama_models` named volumes. To inspect persisted complaints without exposing PostgreSQL on a host port:
+
+```powershell
+docker compose exec postgres psql -U civicpulse -d civicpulse -c "SELECT id, category, priority, status, triaged_by, created_at FROM complaints ORDER BY created_at DESC LIMIT 10;"
+```
+
+Before any intentional `down --volumes`, export a database backup if the data matters:
+
+```powershell
+docker compose exec -T postgres pg_dump -U civicpulse -d civicpulse > civicpulse-backup.sql
+```
+
+Do not commit the backup: it can contain reporter contact details.
 
 ## Production Compose checks
 
